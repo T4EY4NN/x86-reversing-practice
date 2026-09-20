@@ -1,0 +1,8 @@
+# Compiled files
+*.o
+*.out
+my_memset_O0
+my_memset_O2
+
+# Debugger files
+.gdb_history
