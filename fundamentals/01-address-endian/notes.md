@@ -168,3 +168,153 @@ x/bx 주소
 같은 주소라도 pointer type이 다르면 메모리를 다르게 해석할 수 있다.
 
 </aside>
+
+# Week 1 — Lab 3: 메모리 수정과 C ↔ Assembly 연결
+
+## 1. 실습 코드
+
+```c
+unsigned int value = 0x11223344;
+unsigned char *cp = (unsigned char *)&value;
+
+*((unsigned short *)cp + 1) = 0xBEEF;
+```
+
+## 2. 실행 전 메모리 예측
+
+초기 `value`의 메모리:
+
+```
+낮은 주소 → 높은 주소
+
+[44][33][22][11]
+```
+
+`(unsigned short *)cp`의 의미: cp가 가리키는 주소의 값을 2bytes 단위로 끊어서 참조
+
+`+ 1`을 했을 때 이동하는 byte 수: 2bytes
+
+`0xBEEF`가 실제 메모리에 저장되는 순서:
+
+```
+[EF][BE]
+```
+
+최종 메모리:
+
+```
+[44][33][EF][BE]
+```
+
+최종 `value`: 0xBEEF3344
+
+## 3. C → Assembly
+
+- `O0`에서 관찰한 핵심 assembly:
+
+```nasm
+mov DWORD PTR [rbp-0x14], 0x11223344
+lea rax, [rbp-0x14]
+mov QWORD PTR [rbp-0x10], rax
+
+mov rax, QWORD PTR [rbp-0x10]
+add rax, 0x2
+mov WORD PTR [rax], 0xbeef
+```
+
+각 명령을 내 말로 설명:
+
+- `mov DWORD PTR [rbp-0x14], ...`  : unsigned int value = 0x11223344;
+- `lea rax, [rbp-0x14]`  : rax = &value;
+- `mov QWORD PTR [rbp-0x10], rax`  : cp = &value
+- `mov rax, QWORD PTR [rbp-0x10]`  : rax = cp
+- `add rax, 0x2`  : ((unsigned short *)cp + 1)
+- `mov WORD PTR [rax], 0xbeef`  : 0xbeef를 rax가 가리키는 위치에 저장
+
+## 4. 스택에서 value와 cp
+
+내가 처음 헷갈렸던 점:
+
+`rbp-0x10`과 `[rbp-0x10]`의 차이:
+
+```
+value:
+
+rbp-0x14
+   ↓
+[44][33][22][11]
+
+cp:
+
+rbp-0x10
+   ↓
+[rbp-0x14]
+     │
+     └────────────→ value
+```
+
+왜 `cp`에는 `QWORD PTR`, `value`에는 `DWORD PTR`가 사용되는가?
+
+Q. 나도 아직 이게 의문이다. BYTE PTR이 CP가 되는게 맞지 않나?
+
+```c
+    unsigned char *cp = (unsigned char *)&value;
+```
+
+A. `cp` 자체는 주소를 저장하는 포인터 변수이므로 현재 x86-64에서는 8 bytes이고, 따라서 `cp` 자체를 저장/로드할 때 `QWORD PTR`을 사용한다. `unsigned char`는 pointee의 타입이므로 `*cp`를 접근할 때는 1 byte이다.
+
+cp 자체 : QWORD PTR
+*cp : 1byte로 접근
+
+## 5. GDB 검증
+
+이번에 사용한 명령 중 중요한 것:
+
+```
+p/x $rax
+x/gx $rbp-0x10
+x/wx $rbp-0x14
+```
+
+`p/x $rbp-0x10`과 `x/gx $rbp-0x10`의 차이를 내 말로 설명:
+
+전자는 주소를 16진수로 표현. 후자는 주소를 참조하여 값을 16진수로 표현
+
+## 6. -O0 vs -O2
+
+### O0
+
+왜 `cp`를 스택에 저장했다가 다시 `rax`로 읽는 코드가 남아 있었는가?
+
+- O0
+= optimization을 거의 하지 않음
+= C에서 선언한 지역변수 cp를 **실제 메모리의 지역변수**로 비교적 충실하게 유지
+
+### O2
+
+`return value;`로 변경했을 때 결과:
+
+```nasm
+mov eax, 0xbeef3344
+ret
+```
+
+왜 포인터, 스택 변수, 메모리 write가 전부 사라졌는지 내 말로 설명:
+
+아예 결과만 하드코딩 해버리면 효율적이어서.
+
+## 7. 이번에 내가 헷갈렸던 것
+
+1. X 주소 | P 값
+2. 다음은 rax에 있는 주소를 rbp-0x10의 값으로 넣는 행위이다.
+
+0x000055555555516b <+34>:    lea    rax,[rbp-0x14]
+0x000055555555516f <+38>:    mov    QWORD PTR [rbp-0x10],rax
+
+1. 
+
+## 8. 한 문장 핵심
+
+이번 Lab에서 배운 것을 내 말로:
+
+x86-64에서 포인터 자체는 8바이트 주소값을 저장하며, 포인터를 메모리에서 읽거나 쓸 때 `QWORD PTR`이 사용될 수 있다. 포인터를 역참조하거나 산술 연산할 때는 pointee 타입의 크기가 접근 크기와 이동 단위를 결정한다.
