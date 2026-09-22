@@ -101,3 +101,70 @@ x = hexadecimal
 오늘 배운 내용을 딱 한 문장으로:
 
 pointer의 산술이동연산은 sizeof(pointee)에 의해 정해지며, arr가 array to pointer Conversion되는 상황은 다음과 같이 arr+1 될때이며 이때 arr를 객체 배열의 0번째 원소를 가리키는 int* 포인터로 간주해야 한다. 하지만 예외적으로 &arr, sizeof(arr)와 같이 conversion이 일어나지 않는 경우에는 arr 를 배열 객체 자체로 간주해야한다.
+
+```markdown
+# Week 1 — Lab 2: 같은 주소를 다른 포인터 타입으로 해석하기
+
+## 1. 실습 코드
+
+```c
+unsigned int value = 0x12345678;
+unsigned char *cp = (unsigned char *)&value;
+```
+
+## 2. 실습 전 예측
+
+- `cp`의 값: &value (==0x1000 가정)
+- `*cp`의 값: 0x78
+- `cp + 1`: 0x1001
+- `sizeof(*cp)`: 1 byte
+
+## 3. 핵심 개념
+
+### Pointer와 Pointee
+
+내 말로 설명:
+pointer는 어떤 객체의 주소를 값으로 가지는 객체로, 그 객체를 pointee라고 한다.
+
+pointer는 주소를 값으로 저장하는 객체다. pointer가 가리키는 대상의 타입을 pointee type이라고 한다. pointee type은 역참조 시 읽는 크기와 pointer 산술의 이동단위를 결정
+
+### 같은 주소, 다른 타입
+
+메모리:
+
+`[78][56][34][12]`
+
+| 포인터 타입 | `*p`로 읽는 크기 | `p+1` 이동량 | 첫 역참조 값 |
+| --- | --- | --- | --- |
+| `unsigned char *` | 1 byte | 1 byte | 0x78 |
+| `unsigned short *`  | 2 bytes | 2 bytes | 0x5678 |
+| `unsigned int *` | 4bytes | 4bytes | 0x12345678 |
+
+## 4. GDB 검증
+
+사용한 명령:
+
+p (C expression)
+p/x 값
+
+x/bx 주소
+
+## 5. 시행착오
+
+### `x/2bx *cp`가 실패한 이유
+
+내 설명: x는 examine으로, 주소0x78에 있는 값을 참조하려고 할때 유효한 주소가 아니므로 오류가 난다.
+
+### 새로 발견한 혼동
+
+- x 명령어는 주소를 examine한다
+- 
+
+## 6. 한 문장 핵심
+
+<aside>
+💡
+
+같은 주소라도 pointer type이 다르면 메모리를 다르게 해석할 수 있다.
+
+</aside>
