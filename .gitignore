@@ -5,4 +5,6 @@ my_memset_O0
 my_memset_O2
 
 # Debugger files
-.gdb_history
+.gdb_history**/build/
+
+**/build/.gdb_history
